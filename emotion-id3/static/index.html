@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phân loại cảm xúc bằng ID3</title>
+<style>
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --ink:#1b2230; --muted:#5f6b7d; --line:#dfe3ea;
+  --accent:#2b4fd8; --accent-soft:#e6ebff;
+  --pos:#12805c; --pos-soft:#dcf3ea; --neg:#c23a3a; --neg-soft:#fbe4e4; --neu:#6b7280; --neu-soft:#eceef2;
+  --code-bg:#f0f2f6;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#10141c; --surface:#171c27; --ink:#e7ebf3; --muted:#9aa5b8; --line:#2a3242;
+    --accent:#7d96ff; --accent-soft:#222c52;
+    --pos:#4fd1a1; --pos-soft:#14352a; --neg:#ff8b8b; --neg-soft:#3b1f22; --neu:#a3acbb; --neu-soft:#252b38;
+    --code-bg:#1d2331; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-left,0px)) 56px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+h1{font-size:1.45rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;font-size:.9rem;max-width:62ch}
+h2{font-size:1.05rem;margin:0 0 10px}
+h3{font-size:.8rem;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--ink);padding:7px 14px;font:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+button,input,select{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 13px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+input[type=text],select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);min-width:0}
+.predict{display:grid;gap:12px;margin-bottom:18px}
+.predict form{display:flex;gap:8px;flex-wrap:wrap}
+.predict input[type=text]{flex:1 1 260px}
+.result{display:none;gap:10px 18px;flex-wrap:wrap;align-items:flex-start}
+.result.show{display:flex}
+.badge{display:inline-block;border-radius:999px;padding:2px 11px;font-size:.85rem;font-weight:600;white-space:nowrap}
+.badge.p{background:var(--pos-soft);color:var(--pos)} .badge.n{background:var(--neg-soft);color:var(--neg)} .badge.t{background:var(--neu-soft);color:var(--neu)}
+.big{font-size:1.25rem;padding:5px 16px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:.78rem;color:var(--muted);background:var(--code-bg)}
+.chip.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tabs button{border:0;background:transparent;padding:9px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.panel[hidden]{display:none}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:.84rem}
+.formula{font-family:var(--mono);font-size:.84rem;background:var(--code-bg);border-radius:6px;padding:7px 10px;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+.note{color:var(--muted);font-size:.86rem}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.addrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.addrow input[type=text]{flex:1 1 240px}
+.x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 6px}
+.x:hover{color:var(--neg)}
+/* Gain bars */
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;min-width:80px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+tr.best td{background:var(--accent-soft)}
+.stepnav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.stepnav input[type=range]{flex:1 1 160px;min-width:0}
+.kv{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:10px}
+.kv b{font-variant-numeric:tabular-nums}
+/* Tree */
+.tree ul{list-style:none;margin:0;padding-left:20px;border-left:1px dashed var(--line)}
+.tree>ul{padding-left:0;border-left:0}
+.tree li{margin:5px 0}
+.nd{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;background:var(--surface)}
+.nd.hit{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.nd .edge{color:var(--accent);font-family:var(--mono);font-size:.8rem}
+.nd .id{color:var(--muted);font-family:var(--mono);font-size:.74rem}
+.order{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.order span.k{border:1px solid var(--line);border-radius:6px;padding:0 6px;font-family:var(--mono);font-size:.78rem}
+.order span.arrow{color:var(--muted)}
+.rule{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px}
+.rule.hit{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.rule summary{cursor:pointer;color:var(--accent);font-size:.86rem}
+.tt td,.tt th{text-align:center;padding:4px 8px}
+.tt tr.fire td{background:var(--accent-soft);font-weight:600}
+.err{color:var(--neg);margin:0}
+.cm td,.cm th{text-align:center}
+.cm td.diag{background:var(--pos-soft);font-weight:600}
+@media (prefers-reduced-motion:no-preference){.bar>i{transition:width .25s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Phân loại cảm xúc bằng ID3</h1>
+      <p class="sub">Câu tiếng Việt được chuyển thành thuộc tính rời rạc, cây quyết định học bằng entropy và information gain, sau đó đọc lại thành luật logic.</p>
+    </div>
+    <div>
+      <h3 id="strat-label">Thứ tự mở rộng nút khi xây cây</h3>
+      <div class="seg" role="group" aria-labelledby="strat-label">
+        <button type="button" id="s-bfs" aria-pressed="true">BFS</button>
+        <button type="button" id="s-dfs" aria-pressed="false">DFS</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="card predict" aria-label="Dự đoán cảm xúc">
+    <form id="pform">
+      <input type="text" id="ptext" aria-label="Câu cần phân loại" placeholder="Nhập một câu, ví dụ: Tôi không vui" value="Tôi không vui" maxlength="300" autocomplete="off">
+      <button class="btn primary" type="submit">Phân loại</button>
+    </form>
+    <div class="result" id="presult"></div>
+    <p class="err" id="perr" role="alert"></p>
+  </section>
+
+  <div class="tabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="true" data-tab="data">Dữ liệu</button>
+    <button role="tab" aria-selected="false" data-tab="gain">Entropy và Gain</button>
+    <button role="tab" aria-selected="false" data-tab="tree">Cây và Open/Closed</button>
+    <button role="tab" aria-selected="false" data-tab="logic">Luật và logic</button>
+    <button role="tab" aria-selected="false" data-tab="eval">Đánh giá</button>
+  </div>
+
+  <section class="panel card" id="tab-data"></section>
+  <section class="panel card" id="tab-gain" hidden></section>
+  <section class="panel card" id="tab-tree" hidden></section>
+  <section class="panel card" id="tab-logic" hidden></section>
+  <section class="panel card" id="tab-eval" hidden></section>
+</div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const f4 = x => Number(x).toFixed(4);
+const LABEL_CLASS = {"Tích cực":"p","Tiêu cực":"n","Trung tính":"t"};
+const badge = (l, big) => `<span class="badge ${LABEL_CLASS[l]||"t"}${big?" big":""}">${esc(l)}</span>`;
+const VALUE_VI = {co:"có", khong:"không", ngan:"ngắn", vua:"vừa", dai:"dài"};
+const vv = v => VALUE_VI[v] || v;
+
+const state = { data: [], strategy: "bfs", model: null, step: 0, pred: null, tab: "data" };
+let attrTitle = {};
+
+async function api(path, body) {
+  const res = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : undefined);
+  const json = await res.json().catch(() => ({error:"Phản hồi không hợp lệ"}));
+  if (!res.ok) throw new Error(json.error || "Lỗi máy chủ");
+  return json;
+}
+
+async function train() {
+  try {
+    state.model = await api("/api/train", {data: state.data, strategy: state.strategy});
+    attrTitle = Object.fromEntries(state.model.attrs.map(a => [a.key, a.title]));
+    state.step = Math.min(state.step, state.model.steps.length - 1);
+    state.pred = null; $("#presult").classList.remove("show");
+    renderAll();
+  } catch (e) { $("#perr").textContent = e.message; }
+}
+
+function renderAll() { renderData(); renderGain(); renderTree(); renderLogic(); renderEval(); }
+
+/* ---------- Dữ liệu ---------- */
+function featureChips(row) {
+  return state.model.attrs.map(a => {
+    const v = row[a.key], on = v === "co" || a.key === "do_dai";
+    const txt = a.key === "do_dai" ? `độ dài: ${vv(v)}` : `${a.title.replace("Có ","")}: ${vv(v)}`;
+    return `<span class="chip${on?" on":""}">${esc(txt)}</span>`;
+  }).join("");
+}
+function renderData() {
+  const m = state.model, el = $("#tab-data");
+  const dist = Object.entries(m.distribution).map(([l,c]) => `${badge(l)} ${c}`).join(" &nbsp; ");
+  el.innerHTML = `
+    <h2>Dữ liệu huấn luyện (${m.rows.length} câu)</h2>
+    <p class="note">Thuộc tính được trích tự động từ từ điển từ khóa. Thêm hoặc xóa câu thì cây được học lại ngay. Phân bố nhãn: ${dist}</p>
+    <form class="addrow" id="addform">
+      <input type="text" id="newtext" aria-label="Câu mới" placeholder="Thêm câu huấn luyện" maxlength="300" autocomplete="off" required>
+      <select id="newlabel" aria-label="Nhãn">${m.labels.map(l => `<option>${esc(l)}</option>`).join("")}</select>
+      <button class="btn" type="submit">Thêm</button>
+      <button class="btn" type="button" id="resetdata">Dữ liệu mẫu</button>
+    </form>
+    <div class="tablewrap"><table>
+      <thead><tr><th>#</th><th>Câu</th><th>Nhãn</th><th>Thuộc tính trích được</th><th></th></tr></thead>
+      <tbody>${m.rows.map((r,i) => `<tr><td class="num">${i+1}</td><td>${esc(r.text)}</td><td>${badge(r.label)}</td><td><div class="chips">${featureChips(r)}</div></td><td><button class="x" data-del="${i}" aria-label="Xóa câu ${i+1}">✕</button></td></tr>`).join("")}</tbody>
+    </table></div>`;
+  $("#addform").onsubmit = ev => {
+    ev.preventDefault();
+    const text = $("#newtext").value.trim(); if (!text) return;
+    state.data.push({text, label: $("#newlabel").value}); train();
+  };
+  $("#resetdata").onclick = loadDefault;
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { state.data.splice(+b.dataset.del, 1); train(); });
+}
+async function loadDefault() { state.data = (await api("/api/dataset")).data; state.step = 0; train(); }
+
+/* ---------- Entropy và Gain ---------- */
+function distText(d) { return Object.entries(d).map(([l,c]) => `${l}: ${c}`).join(", "); }
+function entropyCalc(d) {
+  const n = Object.values(d).reduce((a,b) => a+b, 0);
+  const terms = Object.values(d).map(c => `(${c}/${n})·log₂(${c}/${n})`);
+  return `H(S) = −[${terms.join(" + ")}]`;
+}
+const REASON = {
+  pure: "Nút thuần (chỉ một nhãn), tạo lá.",
+  no_attrs: "Hết thuộc tính để chia, lấy nhãn chiếm đa số làm lá.",
+  no_gain: "Không thuộc tính nào có Gain dương, lấy nhãn chiếm đa số làm lá.",
+  split: "Chọn thuộc tính có Gain lớn nhất để chia."
+};
+function pathText(path) {
+  return path.length ? path.map(([a,v]) => `${attrTitle[a]} = ${vv(v)}`).join(" → ") : "gốc (toàn bộ dữ liệu)";
+}
+function renderGain() {
+  const m = state.model, el = $("#tab-gain"), s = m.steps[state.step];
+  const maxGain = Math.max(0.0001, ...s.gains.map(g => g.gain));
+  const gainRows = s.gains.map(g => `<tr class="${g.attr===s.chosen?"best":""}">
+      <td>${esc(attrTitle[g.attr])}</td>
+      <td class="num mono">${f4(g.gain)}</td>
+      <td><div class="bar"><i style="width:${(100*g.gain/maxGain).toFixed(1)}%"></i></div></td>
+      <td class="mono">${g.parts.map(p => `${esc(vv(p.value))}: ${p.n} mẫu, H=${f4(p.entropy)}`).join("<br>")}</td></tr>`).join("");
+  el.innerHTML = `
+    <h2>Từng bước ID3: entropy và information gain</h2>
+    <p class="note">Mỗi bước là một nút được lấy ra khỏi danh sách Open và mở rộng. Gain(S, A) = H(S) − Σ |Sv|/|S| · H(Sv).</p>
+    <div class="stepnav">
+      <button class="btn" id="prev" ${state.step===0?"disabled":""}>Trước</button>
+      <input type="range" id="stepr" min="0" max="${m.steps.length-1}" value="${state.step}" aria-label="Chọn bước">
+      <button class="btn" id="next" ${state.step===m.steps.length-1?"disabled":""}>Sau</button>
+      <b>Bước ${s.step}/${m.steps.length}</b>
+    </div>
+    <div class="kv"><span>Nút: <b class="mono">${s.node}</b></span><span>Độ sâu: <b>${s.depth}</b></span><span>Số mẫu: <b>${s.n}</b></span><span>Entropy: <b>${f4(s.entropy)}</b></span></div>
+    <p class="note" style="margin:0 0 8px">Đường đi tới nút: ${esc(pathText(s.path))}<br>Phân bố nhãn: ${esc(distText(s.dist))}</p>
+    <div class="formula">${esc(entropyCalc(s.dist))} = ${f4(s.entropy)}</div>
+    ${s.gains.length ? `<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Thuộc tính</th><th class="num">Gain</th><th></th><th>Chia theo giá trị</th></tr></thead><tbody>${gainRows}</tbody></table></div>` : ""}
+    <p style="margin:12px 0 0"><b>${esc(REASON[s.reason])}</b>
+      ${s.chosen ? ` Chọn <b>${esc(attrTitle[s.chosen])}</b>, tạo nút con ${s.children.map(c=>`<span class="mono">${c}</span>`).join(", ")}.` : ` Nhãn của lá: ${badge(s.leaf_label)}`}</p>`;
+  const go = i => { state.step = Math.max(0, Math.min(m.steps.length-1, i)); renderGain(); };
+  $("#prev").onclick = () => go(state.step-1); $("#next").onclick = () => go(state.step+1);
+  $("#stepr").oninput = e => go(+e.target.value);
+}
+
+/* ---------- Cây và Open/Closed ---------- */
+function treeHtml(n, hits) {
+  const label = n.attr ? `<b>${esc(attrTitle[n.attr])}?</b>` : badge(n.label);
+  const edge = n.edge != null ? `<span class="edge">${esc(vv(n.edge))}</span>` : "";
+  const head = `<span class="nd${hits.has(n.id)?" hit":""}">${edge}${label}<span class="id">${n.id} · ${n.n} mẫu · H=${f4(n.entropy)}</span></span>`;
+  return `<li>${head}${n.children.length ? `<ul>${n.children.map(c => treeHtml(c, hits)).join("")}</ul>` : ""}</li>`;
+}
+function orderHtml(list) {
+  return `<div class="order">${list.map((x,i) => `${i?'<span class="arrow">→</span>':""}<span class="k" title="${esc(x.attr ? attrTitle[x.attr] : x.label)}">${x.id}</span>`).join("")}</div>`;
+}
+function renderTree() {
+  const m = state.model, el = $("#tab-tree");
+  const hits = new Set();
+  if (state.pred) { state.pred.path.forEach(p => hits.add(p.node)); hits.add(state.pred.leaf); }
+  const fmt = ids => ids.length ? ids.map(i => `<span class="mono">${i}</span>`).join(", ") : "<i>rỗng</i>";
+  el.innerHTML = `
+    <h2>Cây quyết định</h2>
+    <p class="note">Nút viền đậm nằm trên đường đi của câu vừa phân loại.</p>
+    <div class="tree"><ul>${treeHtml(m.tree, hits)}</ul></div>
+    <div class="grid2" style="margin-top:18px">
+      <div><h3>Duyệt cây bằng BFS (theo tầng)</h3>${orderHtml(m.bfs_order)}</div>
+      <div><h3>Duyệt cây bằng DFS (đi sâu trước)</h3>${orderHtml(m.dfs_order)}</div>
+    </div>
+    <h2 style="margin-top:22px">Danh sách Open và Closed khi xây cây (${state.strategy.toUpperCase()})</h2>
+    <p class="note">${state.strategy === "bfs" ? "Open là hàng đợi: nút con xếp cuối, nút đầu danh sách được mở rộng trước." : "Open là ngăn xếp: nút con xếp đầu, nút đầu danh sách được mở rộng trước."} Đổi BFS/DFS ở góc trên để so sánh. Cây kết quả giống nhau.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th class="num">Bước</th><th>Mở rộng</th><th>Kết quả</th><th>Open sau bước</th><th>Closed sau bước</th></tr></thead>
+      <tbody>${m.steps.map(s => `<tr><td class="num">${s.step}</td><td class="mono">${s.node}</td>
+        <td>${s.chosen ? `chia theo ${esc(attrTitle[s.chosen])}` : `lá ${badge(s.leaf_label)}`}</td>
+        <td>${fmt(s.open_after)}</td><td>${fmt(s.closed_after)}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <p class="note" style="margin-top:12px">A* không dùng ở đây: bài toán học cây không có đích và chi phí đường đi để định nghĩa f = g + h. ID3 tự nó là tìm kiếm tham lam, mỗi bước chọn thuộc tính có Gain cao nhất.</p>`;
+}
+
+/* ---------- Luật và logic ---------- */
+function ttHtml(tt) {
+  if (!tt) return "";
+  return `<div class="tablewrap"><table class="tt"><thead><tr>${tt.atoms.map(a => `<th>${esc(a)}</th>`).join("")}<th>Điều kiện (vế trái)</th><th>P → Q khi Q sai</th></tr></thead>
+    <tbody>${tt.rows.map(r => `<tr class="${r.premise?"fire":""}">${r.vals.map(v => `<td>${v?"Đ":"S"}</td>`).join("")}<td>${r.premise?"Đ":"S"}</td><td>${r.implies_false?"Đ":"S"}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Hàng được tô là hàng duy nhất làm luật kích hoạt. Nếu vế trái đúng mà Q sai thì P → Q sai, đó là lý do P → Q tương đương ¬P ∨ Q.</p>`;
+}
+function renderLogic() {
+  const m = state.model, el = $("#tab-logic");
+  const hitLeaf = state.pred && state.pred.leaf;
+  el.innerHTML = `
+    <h2>Luật suy ra từ cây (${m.rules.length} luật)</h2>
+    <p class="note">Mỗi đường đi từ gốc đến lá là một luật IF-THEN. Các luật loại trừ lẫn nhau vì mỗi câu chỉ đi tới đúng một lá. Dưới đây là cùng một luật viết bằng logic mệnh đề và logic vị từ, kèm cách đọc bằng lời.</p>
+    <div style="display:grid;gap:12px">${m.rules.map((r,i) => `
+      <div class="rule${r.leaf===hitLeaf?" hit":""}">
+        <div>${badge(r.label)} <b>Luật ${i+1}</b> <span class="note">· ${r.support} câu huấn luyện</span></div>
+        <div>${esc(r.if_then)}</div>
+        <div><h3>Logic mệnh đề</h3><div class="formula">${esc(r.propositional)}\n≡ ${esc(r.implication_elimination)}\n≡ ${esc(r.de_morgan)}</div></div>
+        <div><h3>Logic vị từ, lượng từ ∀</h3><div class="formula">${esc(r.forall)}</div><div class="note">${esc(r.forall_vi)}</div></div>
+        <div><h3>Lượng từ ∃</h3><div class="formula">${esc(r.exists)}</div><div class="note">${esc(r.exists_vi)}</div></div>
+        ${r.truth_table ? `<details><summary>Bảng chân trị</summary>${ttHtml(r.truth_table)}</details>` : ""}
+      </div>`).join("")}</div>
+    <p class="note" style="margin-top:12px">Phạm vi lượng từ: ∀x bao cả vế điều kiện lẫn kết luận trong dấu ngoặc, nên x trong CamXuc(x, …) cùng là một câu với x trong các vị từ điều kiện. ∃x chỉ khẳng định có ít nhất một câu minh họa, không khẳng định mọi câu.</p>`;
+}
+
+/* ---------- Đánh giá ---------- */
+function renderEval() {
+  const m = state.model, el = $("#tab-eval"), cm = m.loo.confusion;
+  el.innerHTML = `
+    <h2>Đánh giá</h2>
+    <div class="kv"><span>Độ chính xác trên tập huấn luyện: <b>${(100*m.train_accuracy).toFixed(1)}%</b></span>
+      <span>Leave-one-out (${m.loo.n} lần huấn luyện): <b>${(100*m.loo.accuracy).toFixed(1)}%</b></span></div>
+    <div class="tablewrap"><table class="cm"><thead><tr><th>Thật \\ Dự đoán</th>${m.labels.map(l => `<th>${esc(l)}</th>`).join("")}</tr></thead>
+      <tbody>${m.labels.map(a => `<tr><th>${esc(a)}</th>${m.labels.map(b => `<td class="${a===b?"diag":""}">${cm[a][b]}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="note" style="margin-top:12px">Lưu ý khi đọc kết quả: dữ liệu mẫu do soạn tay và được gán nhãn theo đúng quy tắc mà từ điển từ khóa có thể bắt được, nên điểm số cao không nói lên chất lượng trên văn bản thực tế. Câu có từ ngoài từ điển, mỉa mai hay phủ định phức tạp sẽ bị phân loại sai. Muốn đánh giá thật cần bộ dữ liệu gán nhãn độc lập và thuộc tính phong phú hơn (hoặc dùng C4.5, rừng ngẫu nhiên).</p>`;
+}
+
+/* ---------- Dự đoán ---------- */
+$("#pform").onsubmit = async ev => {
+  ev.preventDefault(); $("#perr").textContent = "";
+  const text = $("#ptext").value.trim(); if (!text) return;
+  try {
+    const r = await api("/api/predict", {text, data: state.data, strategy: state.strategy});
+    state.pred = r;
+    const chips = state.model.attrs.map(a => {
+      const v = r.features[a.key], on = v === "co" || a.key === "do_dai";
+      return `<span class="chip${on?" on":""}">${esc(a.key==="do_dai" ? "độ dài: "+vv(v) : a.title.replace("Có ","")+": "+vv(v))}</span>`;
+    }).join("");
+    const steps = r.path.map(p => `${esc(attrTitle[p.attr])} = <b>${esc(vv(p.value))}</b>`).join(" → ") || "gốc";
+    $("#presult").innerHTML = `<div>${badge(r.label, true)}</div>
+      <div style="flex:1 1 300px;min-width:0"><div class="chips" style="margin-bottom:6px">${chips}</div>
+      <div class="note">Đường đi trên cây: ${steps}${r.fallback ? " (gặp giá trị chưa thấy khi huấn luyện, dùng nhãn đa số của nút)" : ""}</div>
+      ${r.rule ? `<div class="note">${esc(r.rule.if_then)}</div>` : ""}</div>`;
+    $("#presult").classList.add("show");
+    renderTree(); renderLogic();
+  } catch (e) { $("#perr").textContent = e.message; }
+};
+
+/* ---------- Điều khiển ---------- */
+function setStrategy(s) {
+  state.strategy = s; state.step = 0;
+  $("#s-bfs").setAttribute("aria-pressed", s === "bfs"); $("#s-dfs").setAttribute("aria-pressed", s === "dfs");
+  train();
+}
+$("#s-bfs").onclick = () => setStrategy("bfs"); $("#s-dfs").onclick = () => setStrategy("dfs");
+$("#tabs").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-tab]"); if (!b) return;
+  state.tab = b.dataset.tab;
+  document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll(".panel").forEach(p => p.hidden = p.id !== "tab-" + state.tab);
+});
+
+loadDefault().then(() => $("#pform").requestSubmit());
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+services:
+  web:
+    build: .
+    image: emotion-id3:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
